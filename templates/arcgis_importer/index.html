@@ -1,0 +1,54 @@
+{% extends "app_manager/app_install_base.html" %}
+{% load static i18n %}
+
+{% block title %} {{ block.super }} - {% trans "ArcGIS Importer" %} {% endblock %}
+{% block head %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'arcgis_importer/css/index.css' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'arcgis_importer/dist/importer.css' %}"/>
+
+{% endblock %}
+{% block body %}
+    <div id="page-wrapper">
+        <div class="container-fluid">
+            <h3>AcrGIS Importer</h3>
+            <hr>
+            
+            <div class="row">
+                <div class="col-md-8" id="react-app">
+                    
+                </div>
+                {% if GEONODE_SECURITY_ENABLED %}
+                <div class="col-md-4">
+                    <h3>{% trans "Layer Permissions"  %}</h3>
+                    <form id="permission_form">
+                        {% include "_permissions.html" %}
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            
+        </div>
+    </div>
+
+{% endblock %}
+{% block extra_script %}
+{% if GEONODE_SECURITY_ENABLED %}
+    {% include "_permissions_form_js.html" %}
+{% endif %}
+<script src="{% static 'arcgis_importer/dist/polyfill.js' %}"></script>
+<script src="{% static 'arcgis_importer/dist/extVendors.js' %}"></script>
+<script src="{% static 'arcgis_importer/dist/importer.bundle.js' %}"></script>
+  <script>
+    const urls={
+      importsURL:"{% url 'api_dispatch_list'  api_name='arcgis_importer' resource_name='arcgis_import' %}",
+      importURL:"{% url 'esri_import_layer'  api_name='arcgis_importer' resource_name='arcgis_import' %}",
+    }
+    var props={
+      urls:urls,
+      username:"{{request.user.username}}",
+      token:"{{request.user.api_key}}",
+    }
+    ArcGISImporterRenderer.show("react-app",props)
+  </script>
+ {% endblock %}
