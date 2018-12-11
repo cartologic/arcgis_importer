@@ -144,6 +144,8 @@ class EsriManager(EsriDumper):
         except (StopIteration, EsriFeatureLayerException,
                 ConnectionError) as e:
             logger.debug(e.message)
+        except BaseException as e:
+            logger.error(e.message)
         finally:
             return gpkg_layer
 
