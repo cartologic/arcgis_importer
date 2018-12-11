@@ -12,14 +12,19 @@ def get_broker_url():
     return broker_url
 
 
+def _check_async():
+    return getattr(settings, 'ASYNC_SIGNALS', False)
+
+
 def check_broker_status():
     running = False
     broker_url = get_broker_url()
-    if 'memory' not in broker_url:
+    if 'memory' not in broker_url and _check_async():
         try:
             conn = Connection(broker_url)
             conn.ensure_connection(max_retries=3)
             running = True
         except socket.error:
-            pass
+            running = _check_async()
+
     return running
