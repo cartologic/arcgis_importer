@@ -13,6 +13,7 @@ from django.conf import settings
 from django.core.urlresolvers import reverse_lazy
 from esridump.dumper import EsriDumper
 from requests.exceptions import ConnectionError
+
 from osgeo_manager.base_manager import OSGEOManager, get_connection
 from osgeo_manager.config import LayerConfig
 from osgeo_manager.constants import ICON_REL_PATH, SLUGIFIER
@@ -21,10 +22,10 @@ from osgeo_manager.exceptions import EsriFeatureLayerException
 from osgeo_manager.layers import OSGEOLayer
 from osgeo_manager.os_utils import get_new_dir
 from osgeo_manager.publishers import GeonodePublisher, GeoserverPublisher
-from .serializers import EsriSerializer
-from osgeo_manager.utils import urljoin
+from osgeo_manager.utils import get_store_schema, urljoin
 
 from .models import ArcGISLayerImport
+from .serializers import EsriSerializer
 
 try:
     from celery.utils.log import get_task_logger as get_logger
@@ -119,7 +120,8 @@ class EsriManager(EsriDumper):
                     'LAUNDER={}'.format(
                         "YES" if self.config_obj.launder else "NO"),
                     'GEOMETRY_NAME={}'.format(
-                        geom_name if geom_name else 'geom')
+                        geom_name if geom_name else 'geom'),
+                    'SCHEMA={}'.format(get_store_schema())
                 ]
                 gtype = self.esri_serializer.get_geometry_type()
                 coord_trans = None
