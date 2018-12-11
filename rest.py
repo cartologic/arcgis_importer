@@ -6,14 +6,17 @@ from tastypie.authentication import (ApiKeyAuthentication, BasicAuthentication,
 from tastypie.authorization import DjangoAuthorization
 from tastypie.constants import ALL, ALL_WITH_RELATIONS
 from tastypie.resources import ModelResource
-from tastypie.utils import trailing_slash
 from tastypie.serializers import Serializer
+from tastypie.utils import trailing_slash
+
 from geonode.api.api import ProfileResource
-from .serializers import EsriSerializer
-from .esri import EsriManager
 from osgeo_manager.config import LayerConfig
+
+from .esri import EsriManager
 from .models import ArcGISLayerImport
-from .tasks import background_import
+from .serializers import EsriSerializer
+from .tasks import background_import, celery_import_task
+from .utils import check_broker_status
 
 
 class BaseModelResource(ModelResource):
@@ -50,13 +53,17 @@ class ArcGISImportResource(BaseModelResource):
                                          "url of the layer is required")
         if permissions:
             config_dict.update({"permissions": permissions})
+        config = LayerConfig(config=config_dict)
         try:
             es = EsriSerializer(url)
             es.get_data()
-            em = EsriManager(url, config=LayerConfig(config=config_dict))
-            background_import(em.publish)
+            task_id = EsriManager.create_task(url, config=config)
+            if check_broker_status():
+                celery_import_task(task_id)
+            else:
+                background_import(task_id)
             return self.create_response(request, {
-                "id": em.import_obj.id,
+                "id": task_id,
             }, http.HttpAccepted)
         except BaseException as e:
             return self.get_err_response(request, e.message)

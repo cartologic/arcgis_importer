@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 import socket
-from kombu import Connection
+
 from django.conf import settings
+from kombu import Connection
+
+
+def get_broker_url():
+    broker_url = getattr(settings, 'CELERY_BROKER_URL', None)
+    if not broker_url:
+        broker_url = getattr(settings, 'BROKER_URL', None)
+    return broker_url
 
 
 def check_broker_status():
     running = False
-    broker_url = getattr(settings, 'CELERY_BROKER_URL', None)
+    broker_url = get_broker_url()
     if 'memory' not in broker_url:
         try:
             conn = Connection(broker_url)

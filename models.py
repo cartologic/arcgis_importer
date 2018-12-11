@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import json
-from django.core.exceptions import ObjectDoesNotExist
+
 from django.db import models
 from django.utils.translation import ugettext as _
+
 from geonode.people.models import Profile
+
 URL_HELP = "Esri Feature Layer URL Example: https://xxx/ArcGIS/rest/services/xxx/xxx/MapServer/0"
 
 
@@ -31,12 +34,18 @@ class ArcGISLayerImport(models.Model):
 
     @property
     def config_dict(self):
-        config = None
+        config = {}
         try:
             config = json.loads(self.config)
         except ValueError:
             pass
         return config
+
+    def __str__(self):
+        return self.url
+
+    def __unicode__(self):
+        return self.url
 
     @config_obj.setter
     def config_obj(self, value):

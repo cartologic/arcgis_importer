@@ -10,6 +10,7 @@ from contextlib import contextmanager
 
 from ags2sld.handlers import Layer as AgsLayer
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.urlresolvers import reverse_lazy
 from esridump.dumper import EsriDumper
 from requests.exceptions import ConnectionError
@@ -38,19 +39,50 @@ logger = get_logger(__name__)
 
 class EsriManager(EsriDumper):
     def __init__(self, *args, **kwargs):
-        _conf = kwargs.pop('config', LayerConfig())
-        self.config_obj = validate_config(config_obj=_conf)
+        self.task_id = kwargs.pop('task_id', None)
+        self._conf = None
+        self._task = None
         super(EsriManager, self).__init__(*args, **kwargs)
         self.esri_serializer = EsriSerializer(self._layer_url)
         self.esri_serializer.get_data()
         if not self.config_obj.name:
             self.config_obj.name = self.esri_serializer.get_name()
         self.config_obj.get_new_name()
-        import_obj, created = ArcGISLayerImport.objects.get_or_create(
-            url=self._layer_url, config=self.config_obj.as_dict(),
+
+    @property
+    def task(self):
+        if self.task_id and not self._task:
+            try:
+                self._task = ArcGISLayerImport.objects.get(id=self.task_id)
+            except ObjectDoesNotExist as e:
+                logger.warn(e.message)
+        return self._task
+
+    @property
+    def config_obj(self):
+        if self.task and not self._conf:
+            self._conf = LayerConfig(config=self.task.config_dict)
+        if not self._conf:
+            self._conf = LayerConfig()
+        return self._conf
+
+    @config_obj.setter
+    def config_obj(self, value):
+        self._conf = value
+
+    @classmethod
+    def create_task(cls, url, config=LayerConfig()):
+        config_obj = validate_config(config_obj=config)
+        esri_serializer = EsriSerializer(url)
+        esri_serializer.get_data()
+        if not config_obj.name:
+            config_obj.name = esri_serializer.get_name()
+        config_obj.get_new_name()
+        import_obj, _created = ArcGISLayerImport.objects.get_or_create(
+            url=url, config=config_obj.as_dict(),
             status="PENDING",
-            user=self.config_obj.get_user())
-        self.import_obj = import_obj
+            user=config_obj.get_user())
+        return import_obj.id
 
     def get_geom_coords(self, geom_dict):
         if "rings" in geom_dict:
@@ -109,8 +141,9 @@ class EsriManager(EsriDumper):
                 self.config_obj.name = self.esri_serializer.get_name()
             self.config_obj.get_new_name()
             feature_iter = iter(self)
-            self.import_obj.status = "IN_PROGRESS"
-            self.import_obj.save()
+            if self.task:
+                self.task.status = "IN_PROGRESS"
+                self.task.save()
             with OSGEOManager.open_source(get_connection()) as source:
                 options = [
                     'OVERWRITE={}'.format(
@@ -208,9 +241,10 @@ class EsriManager(EsriDumper):
 
         except Exception as e:
             logger.error(e.message)
-            self.import_obj.status = "FINISHED"
-            self.import_obj.task_result = e.message
-            self.import_obj.save()
+            if self.task:
+                self.task.status = "FINISHED"
+                self.task.task_result = e.message
+                self.task.save()
         finally:
             if geonode_layer:
                 layer_url = reverse_lazy('layer_detail', kwargs={
@@ -219,7 +253,8 @@ class EsriManager(EsriDumper):
                     geonode_layer.title,
                     urljoin(settings.SITEURL, layer_url.lstrip('/'))
                 )
-                self.import_obj.status = "FINISHED"
-                self.import_obj.task_result = msg
-                self.import_obj.save()
+                if self.task:
+                    self.task.status = "FINISHED"
+                    self.task.task_result = msg
+                    self.task.save()
             return geonode_layer
