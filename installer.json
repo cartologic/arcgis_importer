@@ -8,5 +8,5 @@
 	"tags": ["Importer","App"],
 	"licence": "BSD",
 	"author_website": "http://www.cartologic.com",
-	"single_instance": true,
+	"single_instance": true
 }
