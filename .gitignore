@@ -107,3 +107,4 @@ tmp_generator
 node_modules
 libs
 .vscode
+/.idea
