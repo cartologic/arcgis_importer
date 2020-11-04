@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from ags2sld.handlers import Layer as AgsLayer
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.urlresolvers import reverse_lazy
+from django.urls import reverse_lazy
 from esridump.dumper import EsriDumper
 from requests.exceptions import ConnectionError
 
@@ -55,7 +55,7 @@ class EsriManager(EsriDumper):
             try:
                 self._task = ArcGISLayerImport.objects.get(id=self.task_id)
             except ObjectDoesNotExist as e:
-                logger.warn(e.message)
+                logger.warn(e)
         return self._task
 
     @property
@@ -112,7 +112,7 @@ class EsriManager(EsriDumper):
             ) and geom.IsValid():
                 feature.SetGeometry(geom)
                 for prop, val in featureDict["properties"].items():
-                    name = str(SLUGIFIER(prop)).encode('utf-8')
+                    name = str(SLUGIFIER(prop))
                     value = val
                     if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
                         feature.SetField(name, value)
@@ -178,9 +178,9 @@ class EsriManager(EsriDumper):
                     layer.CommitTransaction()
         except (StopIteration, EsriFeatureLayerException,
                 ConnectionError) as e:
-            logger.debug(e.message)
+            logger.debug(e)
         except BaseException as e:
-            logger.error(e.message)
+            logger.error(e)
         finally:
             return gpkg_layer
 
@@ -202,7 +202,7 @@ class EsriManager(EsriDumper):
                 try:
                     ags_layer.dump_sld_file()
                 except Exception as e:
-                    logger.error(e.message)
+                    logger.error(e)
                 sld_path = None
                 icon_paths = []
                 for file in os.listdir(tmp_dir):
@@ -220,17 +220,14 @@ class EsriManager(EsriDumper):
                 if len(icon_paths) > 0:
                     for icon_path in icon_paths:
                         uploaded = gs_pub.upload_file(
-                            open(icon_path),
+                            open(icon_path, 'rb'),
                             rel_path=urljoin(ICON_REL_PATH, ags_layer.name))
                         if not uploaded:
                             logger.error("Failed To Upload SLD Icon {}".format(
                                 icon_path))
                 if sld_path:
-                    sld_body = None
-                    with open(sld_path, 'r') as sld_file:
-                        sld_body = sld_file.read()
                     style = gs_pub.create_style(
-                        self.config_obj.name, sld_body, overwrite=True)
+                        self.config_obj.name, sld_path, overwrite=True)
                     if style:
                         gs_pub.set_default_style(self.config_obj.name, style)
 
@@ -240,10 +237,10 @@ class EsriManager(EsriDumper):
                 gs_pub.remove_cached(geonode_layer.alternate)
 
         except Exception as e:
-            logger.error(e.message)
+            logger.error()
             if self.task:
                 self.task.status = "FINISHED"
-                self.task.task_result = e.message
+                self.task.task_result = e
                 self.task.save()
         finally:
             if geonode_layer:

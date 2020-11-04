@@ -23,7 +23,7 @@ class ArcGISLayerImport(models.Model):
     config = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now=False, auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True, auto_now_add=False)
-    user = models.ForeignKey(Profile, blank=False, null=False)
+    user = models.ForeignKey(Profile, blank=False, null=False, on_delete=models.CASCADE)
     status = models.CharField(max_length=50, null=False, blank=False,
                               default="PENDING")
     task_result = models.TextField(null=True, blank=True)

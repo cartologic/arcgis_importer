@@ -69,8 +69,7 @@ class EsriSerializer(object):
         def search_by_name(name):
             check = False
             for field in layer_fields:
-                if SLUGIFIER(field["name"]).encode('utf-8') == SLUGIFIER(
-                        name).encode('utf-8'):
+                if SLUGIFIER(field["name"]) == SLUGIFIER(name):
                     check = True
                     break
             return check

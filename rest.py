@@ -66,7 +66,7 @@ class ArcGISImportResource(BaseModelResource):
                 "id": task_id,
             }, http.HttpAccepted)
         except BaseException as e:
-            return self.get_err_response(request, e.message)
+            return self.get_err_response(request, e)
 
     class Meta:
         resource_name = "arcgis_import"
