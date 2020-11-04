@@ -1,4 +1,4 @@
-git+git://github.com/gmioannou/python-sld.git#egg=python-sld
-git+git://github.com/hishamkaram/ags2sld.git#egg=ags2sld
+git+git://github.com/cartologic/python-sld.git#egg=python-sld
+git+git://github.com/cartologic/ags2sld.git#egg=ags2sld
 esridump==1.8.0
 git+git://github.com/cartologic/osgeo-manager.git#egg=osgeo-manager
