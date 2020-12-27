@@ -26,7 +26,7 @@ class EsriSerializer(object):
         "Shape.STArea()"
     ]
     geometry_types_mapping = {
-        "esriGeometryPolygon": ogr.wkbPolygon,
+        "esriGeometryPolygon": ogr.wkbMultiPolygon,
         "esriGeometryPoint": ogr.wkbPoint,
         "esriGeometryMultipoint": ogr.wkbMultiPoint,
         "esriGeometryPolyline": ogr.wkbLineString,
