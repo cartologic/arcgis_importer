@@ -115,6 +115,8 @@ class EsriManager(EsriDumper):
                     name = str(SLUGIFIER(prop))
                     value = val
                     if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
+                        if prop in self.esri_serializer.fields_domains:
+                            value = self.esri_serializer.fields_domains[prop][value]
                         feature.SetField(name, value)
                 layer.CreateFeature(feature)
                 created = True

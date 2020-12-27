@@ -49,6 +49,7 @@ class EsriSerializer(object):
     def __init__(self, url):
         self._url = url
         self._data = None
+        self.fields_domains = {}
 
     def get_data(self):
         req = requests.get(self._url + "?f=json")
@@ -87,6 +88,13 @@ class EsriSerializer(object):
         for field in data_fields:
             field_type = field["type"]
             if str(SLUGIFIER(field["name"])).encode('utf-8'):
+                # domain with coded values handling
+                if field['domain'] and field['domain']['type'] == 'codedValue':
+                    field_type = "esriFieldTypeString"  # enforce string type to accept the coded value
+                    self.fields_domains[field["name"]] = {}
+                    for coded_value in field['domain']['codedValues']:
+                        self.fields_domains[field["name"]][coded_value['code']] = coded_value['name']
+
                 field_defn = ogr.FieldDefn(
                     str(SLUGIFIER(field["name"])),
                     self.field_types_mapping[field_type])
