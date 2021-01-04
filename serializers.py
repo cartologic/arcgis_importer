@@ -50,6 +50,20 @@ class EsriSerializer(object):
         self._url = url
         self._data = None
         self.fields_domains = {}
+        self.subtypes = {}
+        self.subtypes_fields = []  # maintain list of sub types fields to easily check which field has a subtype
+        layer_type = self._url.split('/')[-2]
+        if layer_type.lower() == 'mapserver':
+            self.subtype_property_name = 'typeIdField'
+            self.subtypes_dict_property_name = 'types'
+            self.subtype_id_property_name = 'id'
+        elif layer_type.lower() == 'featureserver':
+            self.subtype_property_name = 'subtypeField'
+            self.subtypes_dict_property_name = 'subtypes'
+            self.subtype_id_property_name = 'code'
+        else:
+            raise EsriFeatureLayerException(
+                "This URL {} Is Not A FeatureServer Nor MapServer URL".format(self._url))
 
     def get_data(self):
         req = requests.get(self._url + "?f=json")
@@ -82,7 +96,23 @@ class EsriSerializer(object):
                 layer_fields.append(field)
         return layer_fields
 
+    def build_subtypes(self):
+        # build subtype data structure to facilitate replacing id/code with mapped value
+        for sub_type in self._data[self.subtypes_dict_property_name]:
+            sub_types = {}
+            for field_name in sub_type['domains']:
+                if sub_type['domains'][field_name]['type'] == 'codedValue':
+                    if field_name not in self.subtypes_fields:
+                        self.subtypes_fields.append(field_name)
+                    sub_types[field_name] = \
+                        {coded_value['code']: coded_value['name'] for coded_value in sub_type['domains'][field_name]['codedValues']}
+            if len(sub_types.keys()):
+                self.subtypes[sub_type[self.subtype_id_property_name]] = sub_types
+
     def build_fields(self):
+        # check if a subtype is defined
+        if self._data[self.subtype_property_name]:
+            self.build_subtypes()
         data_fields = self.get_fields_list()
         field_defns = []
         for field in data_fields:
@@ -94,12 +124,13 @@ class EsriSerializer(object):
                     self.fields_domains[field["name"]] = {}
                     for coded_value in field['domain']['codedValues']:
                         self.fields_domains[field["name"]][coded_value['code']] = coded_value['name']
+                elif field['name'] in self.subtypes_fields:
+                    field_type = "esriFieldTypeString"  # enforce string type to accept the coded value
 
                 field_defn = ogr.FieldDefn(
                     str(SLUGIFIER(field["name"])),
                     self.field_types_mapping[field_type])
-                if field_type == "esriFieldTypeString" and field.get(
-                        "length", None):
+                if field_type == "esriFieldTypeString" and field.get("length", None):
                     # NOTE: handle large text by WideString
                     # For Now set max length by default
                     # field_defn.SetWidth(field["length"])
@@ -121,6 +152,13 @@ class EsriSerializer(object):
     @property
     def is_feature_layer(self):
         return self._data['type'] in ["Feature Layer", "Table"]
+
+    @property
+    def subtype_field_name(self):
+        # convert field name to upper case to match fields definition.
+        # "By observation" fields name in upper case.
+        # TODO: check if there are cases that violate this observation.
+        return self._data[self.subtype_property_name].upper()
 
     def attributes_convertor(self, attributes):
         raise NotImplementedError("To Be Implemented")

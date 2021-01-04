@@ -115,7 +115,12 @@ class EsriManager(EsriDumper):
                     name = str(SLUGIFIER(prop))
                     value = val
                     if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
-                        if prop in self.esri_serializer.fields_domains:
+                        # replace id/code with mapped valued for subtypes
+                        if prop in self.esri_serializer.subtypes_fields:
+                            type_field_value = featureDict["properties"][self.esri_serializer.subtype_field_name]
+                            value = self.esri_serializer.subtypes[type_field_value][prop][value]
+                        # replace id/code with mapped valued for domain coded values
+                        elif prop in self.esri_serializer.fields_domains:
                             value = self.esri_serializer.fields_domains[prop][value]
                         feature.SetField(name, value)
                 layer.CreateFeature(feature)
@@ -164,8 +169,7 @@ class EsriManager(EsriDumper):
                 OSR_WGS84_REF.ImportFromEPSG(4326)
                 projection = self.esri_serializer.get_projection()
                 if projection != OSR_WGS84_REF:
-                    coord_trans = osr.CoordinateTransformation(
-                        OSR_WGS84_REF, projection)
+                    coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
                 with self.create_source_layer(source,
                                               str(self.config_obj.name),
                                               projection, gtype,
