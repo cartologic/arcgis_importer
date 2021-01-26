@@ -290,6 +290,10 @@ class EsriManager(EsriDumper):
                     layer.DeleteFeature(old_feature.GetFID())
                     old_feature = layer.GetNextFeature()
                 # TODO: reset FID sequence otherwise new FIDs will be generated
+
+                # build fields is mandatory for domain fields and subtypes
+                self.esri_serializer.build_fields()
+
                 # importing the features again
                 for next_feature in feature_iter:
                     self.create_feature(layer, next_feature, gtype, srs=coord_trans)
