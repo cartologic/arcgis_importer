@@ -57,3 +57,15 @@ class ArcGISLayerImport(models.Model):
         verbose_name = "ArcGIS Layer Import"
         verbose_name_plural = "ArcGIS Layer Imports"
         ordering = ['-created_at', ]
+
+
+class ImportedLayer(models.Model):
+    url = models.URLField(null=False, verbose_name="Layer URL", blank=False, help_text=_(URL_HELP))
+    name = models.CharField(_('name'), max_length=128, null=True, blank=True)
+    last_update_status = models.CharField(_('Last Update Status'), max_length=128, null=True, blank=True,
+                                          choices=(('Failed', _('Failed')), ('Succeeded', _('Succeeded'))))
+    created_at = models.DateTimeField(auto_now=False, auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, auto_now_add=False)
+
+    def __str__(self):
+        return self.name

@@ -261,3 +261,53 @@ class EsriManager(EsriDumper):
                     self.task.task_result = msg
                     self.task.save()
             return geonode_layer
+
+    # delete all data exist and import it again from the ArcGIS service.
+    def reload_data(self, geonode_layer):
+        if self.task:
+            self.task.status = "IN_PROGRESS"
+            self.task.save()
+        # To get layer name from alternate as it is the same as DB table name and geoserver layer name
+        self.config_obj.name = geonode_layer.alternate.split(':')[-1]
+        self.config_obj.overwrite = True
+        feature_iter = iter(self)
+        gtype = self.esri_serializer.get_geometry_type()
+        coord_trans = None
+        OSR_WGS84_REF = osr.SpatialReference()
+        OSR_WGS84_REF.ImportFromEPSG(4326)
+        projection = self.esri_serializer.get_projection()
+        if projection != OSR_WGS84_REF:
+            coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
+        with OSGEOManager.open_source(get_connection(), update_enabled=1) as source:
+            layer = source.GetLayer(self.config_obj.name)
+            try:
+                layer.StartTransaction()
+                # remove all features
+                # Note: remove features one by one allow to rollback if the error raised
+                # TODO: check if truncating the table is possible to enhance the performance
+                old_feature = layer.GetNextFeature()
+                while old_feature:
+                    layer.DeleteFeature(old_feature.GetFID())
+                    old_feature = layer.GetNextFeature()
+                # TODO: reset FID sequence otherwise new FIDs will be generated
+                # importing the features again
+                for next_feature in feature_iter:
+                    self.create_feature(layer, next_feature, gtype, srs=coord_trans)
+                layer.CommitTransaction()
+
+                geoserver_pub = GeoserverPublisher()
+                # remove layer caching to update rendering.
+                # otherwise changes will not be rendered until layer refreshed
+                geoserver_pub.remove_cached(geonode_layer.typename)
+
+                if self.task:
+                    self.task.status = "FINISHED"
+                    self.task.save()
+            # TODO: check the which exceptions should be handled
+            except (StopIteration, EsriFeatureLayerException, ConnectionError, BaseException) as e:
+                layer.RollbackTransaction()
+                logger.error(e)
+                return False
+            else:
+                return True
+
