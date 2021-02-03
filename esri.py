@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 try:
     import ogr
     import osr
@@ -14,6 +15,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse_lazy
 from esridump.dumper import EsriDumper
 from requests.exceptions import ConnectionError
+
+from geonode.geoserver.helpers import gs_catalog, get_store
 
 from osgeo_manager.base_manager import OSGEOManager, get_connection
 from osgeo_manager.config import LayerConfig
@@ -278,8 +281,17 @@ class EsriManager(EsriDumper):
         projection = self.esri_serializer.get_projection()
         if projection != OSR_WGS84_REF:
             coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
-        with OSGEOManager.open_source(get_connection(), update_enabled=1) as source:
-            layer = source.GetLayer(self.config_obj.name)
+
+        store = get_store(gs_catalog, geonode_layer.store, geonode_layer.workspace)
+        # get database name and schema name from layer datastore
+        # TODO: get all parameters for the datastore
+        # TODO: find a way to pass the database password also , as it is encrypted in the datastore.
+        db_connection = get_connection(database_name=store.connection_parameters['database'],
+                                       schema=store.connection_parameters['schema'])
+        with OSGEOManager.open_source(db_connection, update_enabled=1) as source:
+            geoserver_layer = gs_catalog.get_layer(geonode_layer.alternate)
+            # pass native_name to GetLayer as it represent the table name
+            layer = source.GetLayer(geoserver_layer.resource.native_name)
             try:
                 layer.StartTransaction()
                 # remove all features
