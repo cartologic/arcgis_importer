@@ -36,7 +36,6 @@ try:
 except ImportError:
     from cartoview.log_handler import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -81,10 +80,8 @@ class EsriManager(EsriDumper):
         if not config_obj.name:
             config_obj.name = esri_serializer.get_name()
         config_obj.get_new_name()
-        import_obj, _created = ArcGISLayerImport.objects.get_or_create(
-            url=url, config=config_obj.as_dict(),
-            status="PENDING",
-            user=config_obj.get_user())
+        import_obj, _created = ArcGISLayerImport.objects.get_or_create(url=url, config=config_obj.as_dict(),
+                                                                       status="PENDING", user=config_obj.get_user())
         return import_obj.id
 
     def get_geom_coords(self, geom_dict):
@@ -111,8 +108,7 @@ class EsriManager(EsriDumper):
                 geom.Transform(srs)
             if geom and expected_type != geom.GetGeometryType():
                 geom = ogr.ForceTo(geom, expected_type)
-            if geom and expected_type == geom.GetGeometryType(
-            ) and geom.IsValid():
+            if geom and expected_type == geom.GetGeometryType() and geom.IsValid():
                 feature.SetGeometry(geom)
                 for prop, val in featureDict["properties"].items():
                     name = str(SLUGIFIER(prop))
@@ -135,8 +131,7 @@ class EsriManager(EsriDumper):
 
     @contextmanager
     def create_source_layer(self, source, name, projection, gtype, options):
-        layer = source.CreateLayer(
-            str(name), srs=projection, geom_type=gtype, options=options)
+        layer = source.CreateLayer(str(name), srs=projection, geom_type=gtype, options=options)
         if not layer:
             raise EsriFeatureLayerException("Failed to Create Layer Table")
         yield layer
@@ -173,20 +168,15 @@ class EsriManager(EsriDumper):
                 projection = self.esri_serializer.get_projection()
                 if projection != OSR_WGS84_REF:
                     coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
-                with self.create_source_layer(source,
-                                              str(self.config_obj.name),
-                                              projection, gtype,
-                                              options) as layer:
+                with self.create_source_layer(source, str(self.config_obj.name), projection, gtype, options) as layer:
                     for field in self.esri_serializer.build_fields():
                         layer.CreateField(field)
                     layer.StartTransaction()
                     gpkg_layer = OSGEOLayer(layer, source)
                     for next_feature in feature_iter:
-                        self.create_feature(
-                            layer, next_feature, gtype, srs=coord_trans)
+                        self.create_feature(layer, next_feature, gtype, srs=coord_trans)
                     layer.CommitTransaction()
-        except (StopIteration, EsriFeatureLayerException,
-                ConnectionError) as e:
+        except (StopIteration, EsriFeatureLayerException, ConnectionError) as e:
             logger.debug(e)
         except BaseException as e:
             logger.error(e)
@@ -221,19 +211,15 @@ class EsriManager(EsriDumper):
                 if os.path.exists(icons_dir):
                     for file in os.listdir(icons_dir):
                         if file.endswith(".png"):
-                            icon_paths.append(
-                                os.path.join(tmp_dir, ags_layer.name, file))
+                            icon_paths.append(os.path.join(tmp_dir, ags_layer.name, file))
                         if file.endswith(".svg"):
-                            icon_paths.append(
-                                os.path.join(tmp_dir, ags_layer.name, file))
+                            icon_paths.append(os.path.join(tmp_dir, ags_layer.name, file))
                 if len(icon_paths) > 0:
                     for icon_path in icon_paths:
-                        uploaded = gs_pub.upload_file(
-                            open(icon_path, 'rb'),
-                            rel_path=urljoin(ICON_REL_PATH, ags_layer.name))
+                        uploaded = gs_pub.upload_file(open(icon_path, 'rb'),
+                                                      rel_path=urljoin(ICON_REL_PATH, ags_layer.name))
                         if not uploaded:
-                            logger.error("Failed To Upload SLD Icon {}".format(
-                                icon_path))
+                            logger.error("Failed To Upload SLD Icon {}".format(icon_path))
                 if sld_path:
                     style = gs_pub.create_style(
                         self.config_obj.name, sld_path, overwrite=True)
@@ -253,8 +239,7 @@ class EsriManager(EsriDumper):
                 self.task.save()
         finally:
             if geonode_layer:
-                layer_url = reverse_lazy('layer_detail', kwargs={
-                                 'layername': geonode_layer.alternate})
+                layer_url = reverse_lazy('layer_detail', kwargs={'layername': geonode_layer.alternate})
                 msg = "your layer title is {} and url is {}".format(
                     geonode_layer.title,
                     urljoin(settings.SITEURL, layer_url.lstrip('/'))
@@ -326,4 +311,3 @@ class EsriManager(EsriDumper):
                 return False
             else:
                 return True
-
