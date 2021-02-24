@@ -232,7 +232,7 @@ class EsriManager(EsriDumper):
                 gs_pub.remove_cached(geonode_layer.alternate)
 
         except Exception as e:
-            logger.error()
+            logger.error(e)
             if self.task:
                 self.task.status = "FINISHED"
                 self.task.task_result = e
