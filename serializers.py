@@ -167,14 +167,14 @@ class EsriSerializer(object):
         return SLUGIFIER(self._data["name"].lower())
 
     def get_projection(self):
-        projection_number = None
         try:
             srs = self._data["extent"]["spatialReference"]
             if "latestWkid" in srs:
                 projection_number = srs["latestWkid"]
-            elif srs["wkid"] == 102100:
-                projection_number = 3857
-            projection_number = srs["wkid"]
+            else:
+                # older version of arcgis rest hasn't latestWkid
+                # handle deprecated 102100 projection
+                projection_number = 3857 if srs["wkid"] == 102100 else srs["wkid"]
         except BaseException:
             projection_number = 4326
         testSR = osr.SpatialReference()
