@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 try:
     import ogr
     import osr
@@ -84,6 +83,11 @@ class EsriManager(EsriDumper):
                                                                        status="PENDING", user=config_obj.get_user())
         return import_obj.id
 
+    # set _outSR to fetch the data with a projection
+    # NOTE: this function MUST be called before iterating features to take effect.
+    def set_out_sr(self, wkid):
+        self._outSR = wkid
+
     def get_geom_coords(self, geom_dict):
         if "rings" in geom_dict:
             return geom_dict["rings"]
@@ -162,19 +166,17 @@ class EsriManager(EsriDumper):
                     'SCHEMA={}'.format(get_store_schema())
                 ]
                 gtype = self.esri_serializer.get_geometry_type()
-                coord_trans = None
-                OSR_WGS84_REF = osr.SpatialReference()
-                OSR_WGS84_REF.ImportFromEPSG(4326)
+                # get source layer projection
                 projection = self.esri_serializer.get_projection()
-                if projection != OSR_WGS84_REF:
-                    coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
+                # set outSR with original wkid , so no need to transform the geometry after fetching
+                self.set_out_sr(int(projection.GetAuthorityCode(None)))
                 with self.create_source_layer(source, str(self.config_obj.name), projection, gtype, options) as layer:
                     for field in self.esri_serializer.build_fields():
                         layer.CreateField(field)
                     layer.StartTransaction()
                     gpkg_layer = OSGEOLayer(layer, source)
                     for next_feature in feature_iter:
-                        self.create_feature(layer, next_feature, gtype, srs=coord_trans)
+                        self.create_feature(layer, next_feature, gtype)
                     layer.CommitTransaction()
         except (StopIteration, EsriFeatureLayerException, ConnectionError) as e:
             logger.debug(e)
@@ -260,13 +262,6 @@ class EsriManager(EsriDumper):
         self.config_obj.overwrite = True
         feature_iter = iter(self)
         gtype = self.esri_serializer.get_geometry_type()
-        coord_trans = None
-        OSR_WGS84_REF = osr.SpatialReference()
-        OSR_WGS84_REF.ImportFromEPSG(4326)
-        projection = self.esri_serializer.get_projection()
-        if projection != OSR_WGS84_REF:
-            coord_trans = osr.CoordinateTransformation(OSR_WGS84_REF, projection)
-
         store = get_store(gs_catalog, geonode_layer.store, geonode_layer.workspace)
         # get database name and schema name from layer datastore
         # TODO: get all parameters for the datastore
@@ -275,7 +270,7 @@ class EsriManager(EsriDumper):
                                        schema=store.connection_parameters.get('schema', 'public'))
         with OSGEOManager.open_source(db_connection, update_enabled=1) as source:
             geoserver_layer = gs_catalog.get_layer(geonode_layer.alternate)
-            # pass native_name to GetLayer as it represent the table name
+            # pass native_name to GetLayer as it represents the table name
             layer = source.GetLayer(geoserver_layer.resource.native_name)
             try:
                 layer.StartTransaction()
@@ -291,9 +286,12 @@ class EsriManager(EsriDumper):
                 # build fields is mandatory for domain fields and subtypes
                 self.esri_serializer.build_fields()
 
+                # set outSR by destination layer wkid, to retrieve the features with matched projection
+                self.set_out_sr(int(layer.GetSpatialRef().GetAuthorityCode(None)))
+
                 # importing the features again
                 for next_feature in feature_iter:
-                    self.create_feature(layer, next_feature, gtype, srs=coord_trans)
+                    self.create_feature(layer, next_feature, gtype)
                 layer.CommitTransaction()
 
                 geoserver_pub = GeoserverPublisher()
