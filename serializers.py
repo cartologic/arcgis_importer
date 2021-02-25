@@ -176,9 +176,12 @@ class EsriSerializer(object):
                 # handle deprecated 102100 projection
                 projection_number = 3857 if srs["wkid"] == 102100 else srs["wkid"]
         except BaseException:
+            # fallback to 4326 wkid if source layer projection can't be determined
             projection_number = 4326
-        testSR = osr.SpatialReference()
-        res = testSR.ImportFromEPSG(projection_number)
-        if res != 0:
-            testSR.ImportFromEPSG(4326)
-        return testSR
+        source_sr = osr.SpatialReference()
+        # check if the projection number is imported successfully
+        if source_sr.ImportFromEPSG(projection_number) != ogr.OGRERR_NONE:
+            # fallback to 4326 wkid if source layer projection can't be determined
+            source_sr.ImportFromEPSG(4326)
+        return source_sr
+
