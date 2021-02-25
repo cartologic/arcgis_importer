@@ -272,7 +272,7 @@ class EsriManager(EsriDumper):
         # TODO: get all parameters for the datastore
         # TODO: find a way to pass the database password also , as it is encrypted in the datastore.
         db_connection = get_connection(database_name=store.connection_parameters['database'],
-                                       schema=store.connection_parameters['schema'])
+                                       schema=store.connection_parameters.get('schema', 'public'))
         with OSGEOManager.open_source(db_connection, update_enabled=1) as source:
             geoserver_layer = gs_catalog.get_layer(geonode_layer.alternate)
             # pass native_name to GetLayer as it represent the table name
