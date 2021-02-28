@@ -121,16 +121,18 @@ class EsriManager(EsriDumper):
                         # replace id/code with mapped valued for subtypes
                         if prop in self.esri_serializer.subtypes_fields:
                             type_field_value = featureDict["properties"][self.esri_serializer.subtype_field_name]
-                            value = self.esri_serializer.subtypes[type_field_value][prop][value]
-                        # replace id/code with mapped valued for domain coded values
-                        elif prop in self.esri_serializer.fields_domains:
+                            # It is supposed to find the value, but check in case the data is not correct
+                            if value in self.esri_serializer.subtypes[type_field_value][prop]:
+                                value = self.esri_serializer.subtypes[type_field_value][prop][value]
+                        # It is supposed to find the value, but check in case the data is not correct
+                        elif prop in self.esri_serializer.fields_domains \
+                                and value in self.esri_serializer.fields_domains[prop]:
+                            # replace id/code with mapped value for domain coded values
                             value = self.esri_serializer.fields_domains[prop][value]
                         feature.SetField(name, value)
-                layer.CreateFeature(feature)
-                created = True
+                created = layer.CreateFeature(feature) == ogr.OGRERR_NONE
         except Exception as e:
-            logger.error(e)
-            created = False
+            logger.error('Failed to create feature', e)
         return created
 
     @contextmanager
