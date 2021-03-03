@@ -13,6 +13,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse_lazy
 from esridump.dumper import EsriDumper
+from esridump.errors import EsriDownloadError
 from requests.exceptions import ConnectionError
 
 from geonode.geoserver.helpers import gs_catalog, get_store
@@ -172,14 +173,20 @@ class EsriManager(EsriDumper):
                 projection = self.esri_serializer.get_projection()
                 # set outSR with original wkid , so no need to transform the geometry after fetching
                 self.set_out_sr(int(projection.GetAuthorityCode(None)))
-                with self.create_source_layer(source, str(self.config_obj.name), projection, gtype, options) as layer:
-                    for field in self.esri_serializer.build_fields():
-                        layer.CreateField(field)
-                    layer.StartTransaction()
-                    gpkg_layer = OSGEOLayer(layer, source)
-                    for next_feature in feature_iter:
-                        self.create_feature(layer, next_feature, gtype)
-                    layer.CommitTransaction()
+                try:
+                    with self.create_source_layer(source, str(self.config_obj.name), projection, gtype, options) as layer:
+                        for field in self.esri_serializer.build_fields():
+                            layer.CreateField(field)
+                        layer.StartTransaction()
+                        for next_feature in feature_iter:
+                            self.create_feature(layer, next_feature, gtype)
+                        layer.CommitTransaction()
+                        gpkg_layer = OSGEOLayer(layer, source)
+                # TODO: check all possible exceptions and handle it properly
+                except EsriDownloadError as e:
+                    # delete the layer as not all features imported successfully
+                    source.DeleteLayer(self.config_obj.name)
+                    logger.error(e)
         except (StopIteration, EsriFeatureLayerException, ConnectionError) as e:
             logger.debug(e)
         except BaseException as e:
@@ -200,8 +207,7 @@ class EsriManager(EsriDumper):
             if published:
                 agsURL, agsId = self._layer_url.rsplit('/', 1)
                 tmp_dir = get_new_dir()
-                ags_layer = AgsLayer(
-                    agsURL + "/", int(agsId), dump_folder=tmp_dir)
+                ags_layer = AgsLayer(agsURL + "/", int(agsId), dump_folder=tmp_dir)
                 try:
                     ags_layer.dump_sld_file()
                 except Exception as e:
