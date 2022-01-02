@@ -106,12 +106,12 @@ class EsriSerializer(object):
                         self.subtypes_fields.append(field_name)
                     sub_types[field_name] = \
                         {coded_value['code']: coded_value['name'] for coded_value in sub_type['domains'][field_name]['codedValues']}
-            if len(sub_types.keys()):
+            if len(sub_types):
                 self.subtypes[sub_type[self.subtype_id_property_name]] = sub_types
 
     def build_fields(self):
         # check if a subtype is defined
-        if self._data[self.subtype_property_name]:
+        if self.subtype_property_name in self._data and self._data[self.subtype_property_name]:
             self.build_subtypes()
         data_fields = self.get_fields_list()
         field_defns = []
@@ -119,7 +119,7 @@ class EsriSerializer(object):
             field_type = field["type"]
             if str(SLUGIFIER(field["name"])).encode('utf-8'):
                 # domain with coded values handling
-                if field['domain'] and field['domain']['type'] == 'codedValue':
+                if 'domain' in field and field['domain'] and field['domain']['type'] == 'codedValue':
                     field_type = "esriFieldTypeString"  # enforce string type to accept the coded value
                     self.fields_domains[field["name"]] = {}
                     for coded_value in field['domain']['codedValues']:
