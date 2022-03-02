@@ -101,40 +101,47 @@ class EsriManager(EsriDumper):
     def create_feature(self, layer, featureDict, expected_type, srs=None):
         created = False
         try:
-            geom_dict = featureDict["geometry"]
-            if not geom_dict:
-                raise EsriFeatureLayerException("No Geometry Information")
-            geom_type = geom_dict["type"]
             feature = ogr.Feature(layer.GetLayerDefn())
-            coords = self.get_geom_coords(geom_dict)
-            f_json = json.dumps({"type": geom_type, "coordinates": coords})
-            geom = ogr.CreateGeometryFromJson(f_json)
-            if geom and srs:
-                geom.Transform(srs)
-            if geom and expected_type != geom.GetGeometryType():
-                geom = ogr.ForceTo(geom, expected_type)
-            if geom and expected_type == geom.GetGeometryType() and geom.IsValid():
-                feature.SetGeometry(geom)
-                for prop, val in featureDict["properties"].items():
-                    name = str(SLUGIFIER(prop))
-                    value = val
-                    if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
-                        # replace id/code with mapped valued for subtypes
-                        if prop in self.esri_serializer.subtypes_fields:
-                            type_field_value = featureDict["properties"][self.esri_serializer.subtype_field_name]
-                            # It is supposed to find the value, but check in case the data is not correct
-                            if value in self.esri_serializer.subtypes[type_field_value][prop]:
-                                value = self.esri_serializer.subtypes[type_field_value][prop][value]
+
+            if self.esri_serializer.is_feature_layer:
+                geom = self.create_geometry(expected_type, featureDict, srs)
+                if geom and expected_type == geom.GetGeometryType() and geom.IsValid():
+                    feature.SetGeometry(geom)
+
+            for prop, val in featureDict["properties"].items():
+                name = str(SLUGIFIER(prop))
+                value = val
+                if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
+                    # replace id/code with mapped valued for subtypes
+                    if prop in self.esri_serializer.subtypes_fields:
+                        type_field_value = featureDict["properties"][self.esri_serializer.subtype_field_name]
                         # It is supposed to find the value, but check in case the data is not correct
-                        elif prop in self.esri_serializer.fields_domains \
-                                and value in self.esri_serializer.fields_domains[prop]:
-                            # replace id/code with mapped value for domain coded values
-                            value = self.esri_serializer.fields_domains[prop][value]
-                        feature.SetField(name, value)
-                created = layer.CreateFeature(feature) == ogr.OGRERR_NONE
+                        if value in self.esri_serializer.subtypes[type_field_value][prop]:
+                            value = self.esri_serializer.subtypes[type_field_value][prop][value]
+                    # It is supposed to find the value, but check in case the data is not correct
+                    elif prop in self.esri_serializer.fields_domains \
+                            and value in self.esri_serializer.fields_domains[prop]:
+                        # replace id/code with mapped value for domain coded values
+                        value = self.esri_serializer.fields_domains[prop][value]
+                    feature.SetField(name, value)
+            created = layer.CreateFeature(feature) == ogr.OGRERR_NONE
         except Exception as e:
             logger.error('Failed to create feature', e)
         return created
+
+    def create_geometry(self, expected_type, featureDict, srs):
+        geom_dict = featureDict["geometry"]
+        if not geom_dict:
+            raise EsriFeatureLayerException("No Geometry Information")
+        geom_type = geom_dict["type"]
+        coords = self.get_geom_coords(geom_dict)
+        f_json = json.dumps({"type": geom_type, "coordinates": coords})
+        geom = ogr.CreateGeometryFromJson(f_json)
+        if geom and srs:
+            geom.Transform(srs)
+        if geom and expected_type != geom.GetGeometryType():
+            geom = ogr.ForceTo(geom, expected_type)
+        return geom
 
     @contextmanager
     def create_source_layer(self, source, name, projection, gtype, options):

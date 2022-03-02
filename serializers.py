@@ -69,7 +69,7 @@ class EsriSerializer(object):
         req = requests.get(self._url + "?f=json")
         if not self._data:
             self._data = req.json()
-            self.validate_feature_layer()
+            # self.validate_feature_layer()
 
     def validate_feature_layer(self):
         if not self.is_feature_layer:
@@ -144,14 +144,18 @@ class EsriSerializer(object):
 
     def get_geometry_type(self):
         geom_type = self.geometry_types_mapping.get(
-            self._data.get("geometryType", None), None)
+            self._data.get("geometryType", None), ogr.wkbNone)
         if not geom_type:
             raise EsriFeatureLayerException("No Geometry Type")
         return geom_type
 
     @property
     def is_feature_layer(self):
-        return self._data['type'] in ["Feature Layer", "Table"]
+        return self._data['type'] == "Feature Layer"
+
+    @property
+    def is_table(self):
+        return self._data['type'] == "Table"
 
     @property
     def subtype_field_name(self):
