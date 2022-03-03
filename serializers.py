@@ -16,7 +16,7 @@ class EsriSerializer(object):
         "esriFieldTypeDouble": ogr.OFTReal,
         "esriFieldTypeSingle": ogr.OFSTFloat32,
         "esriFieldTypeString": ogr.OFTString,
-        "esriFieldTypeDate": ogr.OFTString,
+        "esriFieldTypeDate": ogr.OFTDateTime,
         "esriFieldTypeBlob": ogr.OFTBinary,
         "esriFieldTypeXML": ogr.OFTBinary,
         # "esriFieldTypeGUID": "XXXX",

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import datetime
+
 try:
     import ogr
     import osr
@@ -108,12 +110,21 @@ class EsriManager(EsriDumper):
                 if geom and expected_type == geom.GetGeometryType() and geom.IsValid():
                     feature.SetGeometry(geom)
 
-            for prop, val in featureDict["properties"].items():
+            for prop, value in featureDict["properties"].items():
                 name = str(SLUGIFIER(prop))
-                value = val
-                if value and layer.GetLayerDefn().GetFieldIndex(name) != -1:
+                field_index = layer.GetLayerDefn().GetFieldIndex(name)
+                # property should have value and the field is created and mapped in the destination layer to be handled
+                if value and field_index != -1:
+                    if layer.schema[field_index].type == ogr.OFTDateTime:
+                        # convert from milliseconds to seconds(value/1000) and get datetime object
+                        datetime_value = datetime.datetime.fromtimestamp(value/1000)
+                        feature.SetField(name, datetime_value.year, datetime_value.month, datetime_value.day,
+                                         datetime_value.hour, datetime_value.minute, datetime_value.second,
+                                         0  # 0 for unknown timezone , TODO: check if it handled properly
+                                         )
+                        continue
                     # replace id/code with mapped valued for subtypes
-                    if prop in self.esri_serializer.subtypes_fields:
+                    elif prop in self.esri_serializer.subtypes_fields:
                         type_field_value = featureDict["properties"][self.esri_serializer.subtype_field_name]
                         # It is supposed to find the value, but check in case the data is not correct
                         if value in self.esri_serializer.subtypes[type_field_value][prop]:
