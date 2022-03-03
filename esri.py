@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime
 
+from .import_status import ImportStatus
+
 try:
     import ogr
     import osr
@@ -83,7 +85,7 @@ class EsriManager(EsriDumper):
             config_obj.name = esri_serializer.get_name()
         config_obj.get_new_name()
         import_obj, _created = ArcGISLayerImport.objects.get_or_create(url=url, config=config_obj.as_dict(),
-                                                                       status="PENDING", user=config_obj.get_user())
+                                                                       status=ImportStatus.PENDING, user=config_obj.get_user())
         return import_obj.id
 
     # set _outSR to fetch the data with a projection
@@ -172,7 +174,7 @@ class EsriManager(EsriDumper):
             self.config_obj.get_new_name()
             feature_iter = iter(self)
             if self.task:
-                self.task.status = "IN_PROGRESS"
+                self.task.status = ImportStatus.IN_PROGRESS
                 self.task.save()
             with OSGEOManager.open_source(get_connection()) as source:
                 options = [
@@ -262,7 +264,7 @@ class EsriManager(EsriDumper):
         except Exception as e:
             logger.error(e)
             if self.task:
-                self.task.status = "FINISHED"
+                self.task.status = ImportStatus.FAILED
                 self.task.task_result = e
                 self.task.save()
         finally:
@@ -273,7 +275,7 @@ class EsriManager(EsriDumper):
                     urljoin(settings.SITEURL, layer_url.lstrip('/'))
                 )
                 if self.task:
-                    self.task.status = "FINISHED"
+                    self.task.status = ImportStatus.FINISHED
                     self.task.task_result = msg
                     self.task.save()
             return geonode_layer
@@ -281,7 +283,7 @@ class EsriManager(EsriDumper):
     # delete all data exist and import it again from the ArcGIS service.
     def reload_data(self, geonode_layer):
         if self.task:
-            self.task.status = "IN_PROGRESS"
+            self.task.status = ImportStatus.IN_PROGRESS
             self.task.save()
         # To get layer name from alternate as it is the same as DB table name and geoserver layer name
         self.config_obj.name = geonode_layer.alternate.split(':')[-1]
@@ -326,7 +328,7 @@ class EsriManager(EsriDumper):
                 geoserver_pub.remove_cached(geonode_layer.typename)
 
                 if self.task:
-                    self.task.status = "FINISHED"
+                    self.task.status = ImportStatus.FINISHED
                     self.task.save()
             # TODO: check the which exceptions should be handled
             except (StopIteration, EsriFeatureLayerException, ConnectionError, BaseException) as e:

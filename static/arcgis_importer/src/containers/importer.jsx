@@ -16,11 +16,20 @@ import t from 'tcomb-form'
 function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+const ImportStatus = Object.freeze({
+    PENDING: 'PENDING',
+    IN_PROGRESS: 'IN_PROGRESS',
+    FINISHED: 'FINISHED',
+    FAILED: 'FAILED'
+});
+
+
 class ArcGISImporter extends Component {
     constructor(props) {
         super(props)
         this.state = {
-            status: "Pending",
+            status: ImportStatus.PENDING,
             result: null
         }
         const { token, username } = this.props
@@ -43,19 +52,19 @@ class ArcGISImporter extends Component {
         const { urls, setImportInProgress } = this.props
         this.requests.doGet(urls.importsURL + id).then(result => {
             if (result.error) {
-                this.setState({ status: "Finished", result: result.error }, () => setImportInProgress(false))
+                this.setState({ status: ImportStatus.FAILED, result: result.error }, () => setImportInProgress(false))
             } else {
-                if (result.status.toLowerCase() !== "finished") {
-                    this.setState({ status: capitalizeFirstLetter(result.status.toLowerCase()), result: result.task_result }, () => {
+                if (result.status !== ImportStatus.FINISHED && result.status != ImportStatus.FAILED) {
+                    this.setState({ status: result.status, result: result.task_result }, () => {
                         setTimeout(function () { that.getImportStatus(id) }, 6000);
                     })
 
                 } else {
-                    this.setState({ status: capitalizeFirstLetter(result.status.toLowerCase()), result: result.task_result }, () => setImportInProgress(false))
+                    this.setState({ status: result.status, result: result.task_result }, () => setImportInProgress(false))
                 }
             }
         }).catch((error) => {
-            that.setState({ status: "Finished", result: error.message }, () => setImportInProgress(false))
+            that.setState({ status: ImportStatus.FAILED, result: error.message }, () => setImportInProgress(false))
         })
     }
     importLayer = (data) => {
@@ -67,12 +76,12 @@ class ArcGISImporter extends Component {
             'Content-Type': 'application/json'
         }).then(result => {
             if (result.error) {
-                this.setState({ status: "Finished", result: result.error }, () => setImportInProgress(false))
+                this.setState({ status: ImportStatus.FAILED, result: result.error }, () => setImportInProgress(false))
             } else {
                 this.getImportStatus(result.id)
             }
         }).catch((error) => {
-            that.setState({ status: "Finished", result: error.message }, () => setImportInProgress(false))
+            that.setState({ status: ImportStatus.FAILED, result: error.message }, () => setImportInProgress(false))
         })
     }
     onSubmit = (evt) => {
@@ -98,7 +107,7 @@ class ArcGISImporter extends Component {
                         <button disabled={importInProgress} type="submit" className="btn btn-primary">{"Import Layer"}</button>
                     </div>
                 </form>
-                {!importInProgress && this.state.status === "Finished" && this.state.result && <div className={`alert alert-${this.state.result && this.state.result.includes("your layer title is") ? "success" : "danger"}`}>
+                { this.state.result && <div className={`alert alert-${this.state.status != ImportStatus.FAILED ? "success" : "danger"}`}>
                     <strong>Result:</strong> {this.state.result}
                 </div>}
             </div>
