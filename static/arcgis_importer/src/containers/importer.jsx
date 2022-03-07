@@ -70,7 +70,7 @@ class ArcGISImporter extends Component {
     importLayer = (data) => {
         let that = this
         const { urls, setImportInProgress } = this.props
-        setImportInProgress(true)
+        this.setState({ status: ImportStatus.PENDING, result: "Getting Layer Info" }, () => setImportInProgress(true))
         this.requests.doPost(urls.importURL, JSON.stringify(data), {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
@@ -78,7 +78,7 @@ class ArcGISImporter extends Component {
             if (result.error) {
                 this.setState({ status: ImportStatus.FAILED, result: result.error }, () => setImportInProgress(false))
             } else {
-                this.getImportStatus(result.id)
+                this.setState({ status: ImportStatus.IN_PROGRESS, result: "Processing" }, () => this.getImportStatus(result.id))
             }
         }).catch((error) => {
             that.setState({ status: ImportStatus.FAILED, result: error.message }, () => setImportInProgress(false))
@@ -108,7 +108,7 @@ class ArcGISImporter extends Component {
                     </div>
                 </form>
                 { this.state.result && <div className={`alert alert-${this.state.status != ImportStatus.FAILED ? "success" : "danger"}`}>
-                    <strong>Result:</strong> {this.state.result}
+                    {this.state.result}
                 </div>}
             </div>
         )

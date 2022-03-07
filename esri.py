@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime
 
+import requests
+
 from .import_status import ImportStatus
 
 try:
@@ -45,15 +47,18 @@ logger = get_logger(__name__)
 
 class EsriManager(EsriDumper):
     def __init__(self, *args, **kwargs):
+        self.features_count = None
         self.task_id = kwargs.pop('task_id', None)
         self._conf = None
         self._task = None
         super(EsriManager, self).__init__(*args, **kwargs)
         self.esri_serializer = EsriSerializer(self._layer_url)
+        self.update_task("Getting Layer Info", ImportStatus.IN_PROGRESS)
         self.esri_serializer.get_data()
         if not self.config_obj.name:
             self.config_obj.name = self.esri_serializer.get_name()
         self.config_obj.get_new_name()
+        self.update_task("Configuration Parsed")
 
     @property
     def task(self):
@@ -63,6 +68,12 @@ class EsriManager(EsriDumper):
             except ObjectDoesNotExist as e:
                 logger.warn(e)
         return self._task
+
+    def update_task(self, message, status=None):
+        self.task.task_result = message
+        if status:
+            self.task.status = status
+        self.task.save()
 
     @property
     def config_obj(self):
@@ -101,6 +112,12 @@ class EsriManager(EsriDumper):
                 geom_dict["paths"]) > 1 else geom_dict["paths"][0]
         else:
             return geom_dict["coordinates"]
+
+    def get_features_count(self):
+        if not self.features_count:
+            req = requests.get(self._layer_url + "/query?where=1=1&returnCountOnly=true&f=json")
+            self.features_count = req.json()['count']
+        return self.features_count
 
     def create_feature(self, layer, featureDict, expected_type, srs=None):
         created = False
@@ -164,11 +181,10 @@ class EsriManager(EsriDumper):
         yield layer
         layer = None
 
-    def esri_to_postgis(self,
-                        geom_name='geom'):
+    def esri_to_postgis(self, geom_name='geom'):
         gpkg_layer = None
         try:
-            self.esri_serializer.get_data()
+            # self.esri_serializer.get_data()
             if not self.config_obj.name:
                 self.config_obj.name = self.esri_serializer.get_name()
             self.config_obj.get_new_name()
@@ -195,12 +211,26 @@ class EsriManager(EsriDumper):
                 self.set_out_sr(int(projection.GetAuthorityCode(None)))
                 try:
                     with self.create_source_layer(source, str(self.config_obj.name), projection, gtype, options) as layer:
+                        self.update_task("DB table created")
                         for field in self.esri_serializer.build_fields():
                             layer.CreateField(field)
                         layer.StartTransaction()
+                        self.update_task("Starting loading data into db table")
+                        created_count = 0
+                        failed_count = 0
+                        features_count = self.get_features_count()
+                        static_msg = "Features: Processed {processed} of {total}, Created {created}, Failed {failed}"
                         for next_feature in feature_iter:
-                            self.create_feature(layer, next_feature, gtype)
+                            if self.create_feature(layer, next_feature, gtype):
+                                created_count += 1
+                            else:
+                                failed_count += 1
+                            current_state = static_msg.format(processed=created_count+failed_count,
+                                                              total=features_count,
+                                                              created=created_count, failed=failed_count)
+                            self.update_task(current_state)
                         layer.CommitTransaction()
+                        self.update_task("Data imported into DB table")
                         gpkg_layer = OSGEOLayer(layer, source)
                 # TODO: check all possible exceptions and handle it properly
                 except EsriDownloadError as e:
@@ -209,10 +239,11 @@ class EsriManager(EsriDumper):
                     logger.error(e)
         except (StopIteration, EsriFeatureLayerException, ConnectionError) as e:
             logger.debug(e)
-        except BaseException as e:
-            logger.error(e)
-        finally:
-            return gpkg_layer
+        # except BaseException as e:
+        #     logger.error(e)
+        # finally:
+        #     return gpkg_layer
+        return gpkg_layer
 
     def publish(self):
         try:
@@ -220,6 +251,7 @@ class EsriManager(EsriDumper):
             layer = self.esri_to_postgis()
             if not layer:
                 raise Exception("failed to dump layer")
+            self.update_task("Publishing to Geoserver")
             gs_pub = GeoserverPublisher()
             geonode_pub = GeonodePublisher(owner=self.config_obj.get_user())
             published = gs_pub.publish_postgis_layer(
@@ -251,11 +283,12 @@ class EsriManager(EsriDumper):
                         if not uploaded:
                             logger.error("Failed To Upload SLD Icon {}".format(icon_path))
                 if sld_path:
+                    self.update_task("Creating Style")
                     style = gs_pub.create_style(
                         self.config_obj.name, sld_path, overwrite=True)
                     if style:
                         gs_pub.set_default_style(self.config_obj.name, style)
-
+            self.update_task("Publishing to GeoNode")
             geonode_layer = geonode_pub.publish(self.config_obj)
             if geonode_layer:
                 logger.info(geonode_layer.alternate)

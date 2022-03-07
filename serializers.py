@@ -69,6 +69,9 @@ class EsriSerializer(object):
         req = requests.get(self._url + "?f=json")
         if not self._data:
             self._data = req.json()
+            if 'error' in self._data:
+                raise EsriFeatureLayerException(
+                    "This URL {} Is Not A FeatureServer Nor MapServer URL".format(self._url))
             # self.validate_feature_layer()
 
     def validate_feature_layer(self):
