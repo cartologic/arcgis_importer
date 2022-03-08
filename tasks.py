@@ -32,11 +32,17 @@ def background_import(task_id):
     t.start()
 
 
-@app.task(bind=True, name='arcgis_importer.tasks.update_imported_layer', queue='default')
+@app.task(bind=True, name='arcgis_importer.tasks.update_imported_layers', queue='default')
 def update_imported_layers(*args, **kwargs):
     for imported_layer in ImportedLayer.objects.all():
         # TODO: run update_imported_layer async
         update_imported_layer(imported_layer)
+
+
+@app.task(bind=True, name='arcgis_importer.tasks.update_imported_layer', queue='default')
+def update_imported_layer_task(self, imported_layers_id):
+    imported_layer = ImportedLayer.objects.get(id=imported_layers_id)
+    update_imported_layer(imported_layer)
 
 
 def update_imported_layer(imported_layer):
