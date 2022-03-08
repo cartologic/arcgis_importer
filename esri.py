@@ -47,7 +47,6 @@ logger = get_logger(__name__)
 
 class EsriManager(EsriDumper):
     def __init__(self, *args, **kwargs):
-        self.features_count = None
         self.task_id = kwargs.pop('task_id', None)
         self._conf = None
         self._task = None
@@ -112,12 +111,6 @@ class EsriManager(EsriDumper):
                 geom_dict["paths"]) > 1 else geom_dict["paths"][0]
         else:
             return geom_dict["coordinates"]
-
-    def get_features_count(self):
-        if not self.features_count:
-            req = requests.get(self._layer_url + "/query?where=1=1&returnCountOnly=true&f=json")
-            self.features_count = req.json()['count']
-        return self.features_count
 
     def create_feature(self, layer, featureDict, expected_type, srs=None):
         created = False
@@ -218,7 +211,7 @@ class EsriManager(EsriDumper):
                         self.update_task("Starting loading data into db table")
                         created_count = 0
                         failed_count = 0
-                        features_count = self.get_features_count()
+                        feature_count = self.get_feature_count()
                         static_msg = "Features: Processed {processed} of {total}, Created {created}, Failed {failed}"
                         for next_feature in feature_iter:
                             if self.create_feature(layer, next_feature, gtype):
@@ -226,7 +219,7 @@ class EsriManager(EsriDumper):
                             else:
                                 failed_count += 1
                             current_state = static_msg.format(processed=created_count+failed_count,
-                                                              total=features_count,
+                                                              total=feature_count,
                                                               created=created_count, failed=failed_count)
                             self.update_task(current_state)
                         layer.CommitTransaction()
