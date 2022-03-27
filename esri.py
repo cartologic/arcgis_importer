@@ -94,7 +94,7 @@ class EsriManager(EsriDumper):
         if not config_obj.name:
             config_obj.name = esri_serializer.get_name()
         config_obj.get_new_name()
-        import_obj, _created = ArcGISLayerImport.objects.get_or_create(url=url, config=config_obj.as_dict(),
+        import_obj, _created = ArcGISLayerImport.objects.get_or_create(url=url, config=json.dumps(config_obj.as_dict()),
                                                                        status=ImportStatus.PENDING, user=config_obj.get_user())
         return import_obj.id
 
