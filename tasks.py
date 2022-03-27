@@ -69,16 +69,5 @@ def update_imported_layer(imported_layer):
     logger.info('update layer {0} {1}'.format(imported_layer.name, imported_layer.last_update_status))
 
 
-@app.on_after_configure.connect
-def setup_periodic_tasks(sender, **kwargs):
-    # update imported layers using a scheduled task
-    sender.add_periodic_task(crontab(minute=os.environ.get('ARCGIS_IMPORTER_UPDATE_MINUTE', '0'),
-                                     hour=os.environ.get('ARCGIS_IMPORTER_UPDATE_HOUR', '0'),
-                                     day_of_week=os.environ.get('ARCGIS_IMPORTER_UPDATE_DAY_OF_WEEK', '*'),
-                                     day_of_month=os.environ.get('ARCGIS_IMPORTER_UPDATE_DAY_OF_MONTH', '*'),
-                                     month_of_year=os.environ.get('ARCGIS_IMPORTER_UPDATE_MONTH_OF_YEAR', '*')),
-                             update_imported_layers.s())
-
-
 app.config_from_object('django.conf:settings', namespace="CELERY")
 app.autodiscover_tasks()
