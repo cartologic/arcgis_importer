@@ -69,6 +69,7 @@ class EsriManager(EsriDumper):
         return self._task
 
     def update_task(self, message, status=None):
+        logger.info(message)
         self.task.task_result = message
         if status:
             self.task.status = status
@@ -356,6 +357,66 @@ class EsriManager(EsriDumper):
                 if self.task:
                     self.task.status = ImportStatus.FINISHED
                     self.task.save()
+            # TODO: check the which exceptions should be handled
+            except (StopIteration, EsriFeatureLayerException, ConnectionError, BaseException) as e:
+                layer.RollbackTransaction()
+                logger.error(e)
+                return False
+            else:
+                return True
+
+    # delete all data exist and import it again from the ArcGIS service.
+    def append_new_data(self, geonode_layer):
+        self.update_task("", ImportStatus.IN_PROGRESS)
+        # To get layer name from alternate as it is the same as DB table name and geoserver layer name
+        self.config_obj.name = geonode_layer.alternate.split(':')[-1]
+        self.config_obj.overwrite = True
+        feature_iter = iter(self)
+        gtype = self.esri_serializer.get_geometry_type()
+        store = get_store(gs_catalog, geonode_layer.store, geonode_layer.workspace)
+        # get database name and schema name from layer datastore
+        # TODO: get all parameters for the datastore
+        # TODO: find a way to pass the database password also , as it is encrypted in the datastore.
+        db_connection = get_connection(database_name=store.connection_parameters['database'],
+                                       schema=store.connection_parameters.get('schema', 'public'))
+        geoserver_layer = gs_catalog.get_layer(geonode_layer.alternate)
+
+        with OSGEOManager.open_source(db_connection) as ds:
+            # Get maximum value for update field
+            result = ds.ExecuteSQL("select max({0}) from {1};".format(self.task.config_dict['update_field'],
+                                                                          geoserver_layer.resource.native_name))
+            update_value = result.GetNextFeature().GetFieldAsString(0)
+            # TODO: check if time zone should be converted not truncated
+            update_value = update_value[:19]  # Truncate the time zone part from date value
+            # TODO: handle fields types(Date fields supported only).
+            query_args = {"where": "{0}>DATE '{1}'".format(self.task.config_dict['update_field'], update_value)}
+            self._query_params = self._build_query_args(query_args=query_args)
+
+        with OSGEOManager.open_source(db_connection, update_enabled=1) as source:
+
+            # pass native_name to GetLayer as it represents the table name
+            layer = source.GetLayer(geoserver_layer.resource.native_name)
+            try:
+                layer.StartTransaction()
+
+                # build fields is mandatory for domain fields and subtypes
+                self.esri_serializer.build_fields()
+
+                if self.esri_serializer.is_feature_layer:
+                    # set outSR by destination layer wkid, to retrieve the features with matched projection
+                    self.set_out_sr(int(layer.GetSpatialRef().GetAuthorityCode(None)))
+
+                # importing new features
+                for next_feature in feature_iter:
+                    self.create_feature(layer, next_feature, gtype)
+                layer.CommitTransaction()
+
+                geoserver_pub = GeoserverPublisher()
+                # remove layer caching to update rendering.
+                # otherwise changes will not be rendered until layer refreshed
+                geoserver_pub.remove_cached(geonode_layer.typename)
+
+                self.update_task("", ImportStatus.FINISHED)
             # TODO: check the which exceptions should be handled
             except (StopIteration, EsriFeatureLayerException, ConnectionError, BaseException) as e:
                 layer.RollbackTransaction()

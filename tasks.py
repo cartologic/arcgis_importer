@@ -1,3 +1,4 @@
+import json
 import os
 import threading
 
@@ -43,6 +44,17 @@ def update_imported_layers(*args, **kwargs):
 def update_imported_layer_task(self, imported_layers_id):
     imported_layer = ImportedLayer.objects.get(id=imported_layers_id)
     update_imported_layer(imported_layer)
+
+
+@app.task(bind=True, name='arcgis_importer.tasks.append_imported_layer', queue='default')
+def append_imported_layer_task(self, arcgis_layer_import_id):
+    task = ArcGISLayerImport.objects.get(id=arcgis_layer_import_id)
+    config = json.loads(task.config.replace("'", '"'))
+    logger.info('update layer {0} started'.format(config['name']))
+    geonode_layer = Layer.objects.get(name=config['name'])
+    query = "{0}>DATE '2018-05-31 00:00:00'".format(config['update_field'])
+    em = EsriManager(task.url, task_id=task.id, extra_query_args={'where': query})
+    success = em.append_new_data(geonode_layer)
 
 
 def update_imported_layer(imported_layer):
