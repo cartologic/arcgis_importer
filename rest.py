@@ -59,7 +59,7 @@ class ArcGISImportResource(BaseModelResource):
             es.get_data()
             task_id = EsriManager.create_task(url, config=config)
             if check_broker_status():
-                celery_import_task(task_id)
+                celery_import_task.delay(task_id)
             else:
                 background_import(task_id)
             return self.create_response(request, {
