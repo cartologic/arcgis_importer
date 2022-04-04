@@ -17,7 +17,7 @@ from .models import ArcGISLayerImport, ImportedLayer
 logger = get_logger(__name__)
 
 
-@app.task(bind=True)
+@app.task(bind=True, name='arcgis_importer.tasks.celery_import_task', queue='default')
 def celery_import_task(self, task_id):
     task = ArcGISLayerImport.objects.get(id=task_id)
     em = EsriManager(task.url, task_id=task.id)
