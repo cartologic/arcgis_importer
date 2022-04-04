@@ -52,8 +52,7 @@ def append_imported_layer_task(self, arcgis_layer_import_id):
     config = json.loads(task.config.replace("'", '"'))
     logger.info('update layer {0} started'.format(config['name']))
     geonode_layer = Layer.objects.get(name=config['name'])
-    query = "{0}>DATE '2018-05-31 00:00:00'".format(config['update_field'])
-    em = EsriManager(task.url, task_id=task.id, extra_query_args={'where': query})
+    em = EsriManager(task.url, task_id=task.id)
     success = em.append_new_data(geonode_layer)
 
 
